@@ -71,7 +71,7 @@ module "prod-cluster" {
   host     = "${module.gke.host}"
   username = "${var.username}"
   password = "${var.password}"
-
+}
 module "git-repo" {
   source   = "./git-repo"
   project  = "${var.project}"
@@ -88,9 +88,7 @@ module "gcr" {
   password = "${var.password}"
 }
 
-
-
   client_certificate     = "${module.gke.client_certificate}"
   client_key             = "${module.gke.client_key}"
   cluster_ca_certificate = "${module.gke.cluster_ca_certificate}"
-}
+

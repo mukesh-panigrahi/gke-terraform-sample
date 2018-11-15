@@ -1,62 +1,71 @@
-# Get latest cluster version
-data "google_container_engine_versions" "versions" {
-  zone = "${var.zone}"
-}
-
-# Create the GKE cluster
-resource "google_container_cluster" "vault" {
-  name    = "vault"
-  project = "${google_project.vault.project_id}"
-  zone    = "${var.zone}"
-
-  initial_node_count = "${var.num_vault_servers}"
-
-  min_master_version = "${data.google_container_engine_versions.versions.latest_master_version}"
-  node_version       = "${data.google_container_engine_versions.versions.latest_node_version}"
-
-  logging_service    = "${var.kubernetes_logging_service}"
-  monitoring_service = "${var.kubernetes_monitoring_service}"
-
+resource "google_container_node_pool" "node_pool_1" {
+  name       = "node-pool-1"
+  zone       = "asia-south1-a"
+  cluster    = "${google_container_cluster.gcp_kubernetes.name}"
+  node_count = 1
   node_config {
-    machine_type    = "${var.instance_type}"
-    service_account = "${google_service_account.vault-server.email}"
-
+    machine_type = "custom-2-4096"
+    disk_size_gb = "20"
     oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/compute",
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring"
     ]
-
-    tags = ["vault"]
   }
 
-  depends_on = [
-    "google_project_service.service",
-    "google_kms_crypto_key_iam_member.vault-init",
-    "google_storage_bucket_iam_member.vault-server",
-    "google_project_iam_member.service-account",
-  ]
 }
 
-# Provision IP
-resource "google_compute_address" "vault" {
-  name    = "vault-lb"
-  region  = "${var.region}"
-  project = "${google_project.vault.project_id}"
+resource "google_container_cluster" "gcp_kubernetes" {
+  name               = "${var.cluster_name}"
+  zone               = "asia-south1-a"
+  initial_node_count = "${var.gcp_cluster_count}"
 
-  depends_on = ["google_project_service.service"]
+  master_auth {
+    username = "${var.linux_admin_username}"
+    password = "${var.linux_admin_password}}"
+  }
+
+  node_config {
+    disk_size_gb = "20"
+    machine_type = "custom-2-2048"
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring",
+      "https://www.googleapis.com/auth/service.management.readonly",
+      "https://www.googleapis.com/auth/servicecontrol",
+      "https://www.googleapis.com/auth/trace.append",
+      "https://www.googleapis.com/auth/compute",
+    ]
+
+    labels {
+      this-is-for = "dev-cluster"
+    }
+
+    tags = ["dev", "work"]
+  }
 }
 
-output "address" {
-  value = "${google_compute_address.vault.address}"
+#####################################################################
+# Output for K8S
+#####################################################################
+output "client_certificate" {
+  value     = "${google_container_cluster.gcp_kubernetes.master_auth.0.client_certificate}"
+  sensitive = true
 }
 
-output "project" {
-  value = "${google_project.vault.project_id}"
+output "client_key" {
+  value     = "${google_container_cluster.gcp_kubernetes.master_auth.0.client_key}"
+  sensitive = true
 }
 
-output "region" {
-  value = "${var.region}"
+output "cluster_ca_certificate" {
+  value     = "${google_container_cluster.gcp_kubernetes.master_auth.0.cluster_ca_certificate}"
+  sensitive = true
 }
 
-output "zone" {
-  value = "${var.zone}"
+output "host" {
+  value     = "${google_container_cluster.gcp_kubernetes.endpoint}"
+  sensitive = true
 }
